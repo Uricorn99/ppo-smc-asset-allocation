@@ -3,7 +3,7 @@
 ## 資源與參考連結
 - **[完整 Introduction (A. to F. 架構)]**: [docs/introduction_revised.md](docs/introduction_revised.md)
 - **[完整 Related Work (文獻探討)]**: [docs/related_work.md](docs/related_work.md)
-- **[對話紀錄 / Perplexity AI Context]**: [Perplexity Search](https://www.perplexity.ai/search/2bf7eda8-7666-45d9-8312-b1abf824477f#14)
+- **[對話紀錄 (Related Work 參考資料)]**: [Perplexity Search](https://www.perplexity.ai/search/2bf7eda8-7666-45d9-8312-b1abf824477f#14)
 - **[簡報/規格書 Proposed Design]**: [Google Slides Presentation](https://docs.google.com/presentation/d/1TU4X4ZUnunU1NLg83RluyfNbQz_qsY_O/edit?usp=sharing&ouid=106316695064653404133&rtpof=true&sd=true)
 - **[展示影片 Video Demo]**: [YouTube Video (10 minutes)](https://www.youtube.com/watch?v=0eg7N7yPJR4)
 
