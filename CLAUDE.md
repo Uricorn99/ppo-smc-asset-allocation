@@ -47,8 +47,8 @@ Helper PowerShell scripts live in `.specify/scripts/powershell/` (`create-new-fe
 <!-- SPECKIT START -->
 - **Feature**: 002-data-ingestion
 - **Plan**: `specs/002-data-ingestion/plan.md`
-- **Tasks**: `specs/002-data-ingestion/tasks.md` (56 tasks across 7 phases, 4 user stories)
-- **Phase**: `/speckit.tasks` complete. Next: `/speckit.implement`.
+- **Tasks**: `specs/002-data-ingestion/tasks.md` (57 tasks across 7 phases, 4 user stories; reviewed 2026-04-29)
+- **Phase**: `/speckit.tasks` complete + auto-review pass. Next: `/speckit.implement`.
 - **Sibling feature on hold**: 001-smc-feature-engine (62 tasks reviewed, ready for `/speckit.implement` after 002 produces `data/raw/` snapshots)
 <!-- SPECKIT END -->
 

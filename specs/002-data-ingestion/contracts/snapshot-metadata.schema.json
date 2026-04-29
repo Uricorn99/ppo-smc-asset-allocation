@@ -120,7 +120,7 @@
     "quality_summary": {
       "type": "object",
       "description": "Counts of each quality_flag value. Sum MUST equal row_count.",
-      "required": ["ok"],
+      "required": ["ok", "missing_close", "zero_volume", "missing_rate", "duplicate_dropped"],
       "properties": {
         "ok": {"type": "integer", "minimum": 0},
         "missing_close": {"type": "integer", "minimum": 0},

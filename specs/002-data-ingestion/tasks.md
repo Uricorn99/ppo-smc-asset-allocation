@@ -290,6 +290,9 @@ load_asset_snapshot; nvda = load_asset_snapshot("NVDA"); batch_compute(nvda, ...
 - [ ] **T052** [P] 撰寫 `tests/integration/test_fetch_perf.py` — 使用 cassette
   模擬無延遲回應，量測 fetch 流程純本地時間 < 30 秒；SC-001 的 5 分鐘預算扣除
   網路時間後仍寬鬆
+- [ ] **T052a** [P] 撰寫 `tests/integration/test_repo_size.py` — 對 `data/raw/`
+  下所有 `*.parquet` 與 `*.parquet.meta.json` 統計總位元組，斷言總和 < 10 MB
+  （SC-005，控制 git clone 體積）；於 CI 上每次 commit data/raw/ 後執行
 - [ ] **T053** [P] 補強 README.md 增加 002 章節：「資料快照」段落引用
   `specs/002-data-ingestion/quickstart.md`
 - [ ] **T054** 執行 quickstart.md §1–§7 全部步驟一次（人工驗證），確認新成員可

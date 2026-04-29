@@ -233,7 +233,7 @@ pytest tests/
 ```bash
 pytest tests/contract/test_metadata_schema.py    # 驗證 metadata JSON Schema
 pytest tests/integration/test_atomic_fetch.py    # 驗證 staging + rename 原子性
-pytest tests/unit/test_quality_flag.py           # 驗證 quality_flag 列舉判定
+pytest tests/unit/test_quality.py                # 驗證 quality_flag 列舉判定
 ```
 
 ---
