@@ -12,13 +12,18 @@ requires a spec amendment (Constitution Principle V).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import gymnasium
 import numpy as np
+
+# Re-export from feature 001. SMCParams is owned by smc_features' spec; we
+# re-export the symbol here so PortfolioEnvConfig stays self-describing and
+# downstream code only needs `from portfolio_env import SMCParams`.
+from smc_features import SMCParams as SMCParams
 
 
 # ---------------------------------------------------------------------------
@@ -37,28 +42,23 @@ class RewardConfig:
 
 
 @dataclass(frozen=True)
-class SMCParams:
-    """Pass-through to smc_features.batch_compute.
-
-    Concrete fields owned by feature 001's spec; this class is re-exported
-    here as a typing convenience so PortfolioEnvConfig stays self-contained.
-    """
-    # actual fields defined by 001; kept opaque here on purpose
-
-
-@dataclass(frozen=True)
 class PortfolioEnvConfig:
-    """Static environment configuration. See data-model.md §2.2."""
+    """Static environment configuration. See data-model.md §2.2.
+
+    `render_mode` follows Gymnasium 0.29+ convention: passed at __init__,
+    stored on the env instance, never as a parameter to render().
+    """
     data_root: Path
     assets: tuple[str, ...] = ("NVDA", "AMD", "TSM", "MU", "GLD", "TLT")
     include_smc: bool = True
-    reward_config: RewardConfig = ...
+    reward_config: RewardConfig = field(default_factory=RewardConfig)
     position_cap: float = 0.4
     base_slippage_bps: float = 5.0
     initial_nav: float = 1.0
     start_date: date | None = None
     end_date: date | None = None
-    smc_params: SMCParams = ...
+    smc_params: SMCParams = field(default_factory=SMCParams)
+    render_mode: str | None = None  # None or "ansi" (FR-027)
 
 
 # ---------------------------------------------------------------------------
@@ -73,14 +73,22 @@ class PortfolioEnv(gymnasium.Env):
     Reward:      log(NAV_t/NAV_{t-1}) - lambda_mdd*drawdown - lambda_turnover*turnover.
 
     All reset/step return values follow Gymnasium 0.29+ five-tuple convention.
+    `metadata = {"render_modes": ["ansi"], "render_fps": 0}`.
     """
 
+    metadata: dict[str, Any]
     observation_space: gymnasium.spaces.Box
     action_space: gymnasium.spaces.Box
-    metadata: dict[str, Any]
     config: PortfolioEnvConfig
+    render_mode: str | None
 
-    def __init__(self, config: PortfolioEnvConfig) -> None: ...
+    def __init__(self, config: PortfolioEnvConfig) -> None:
+        """Construct env.
+
+        `self.render_mode` is set from `config.render_mode` to comply with
+        Gymnasium 0.29+ env_checker (SC-003).
+        """
+        ...
 
     def reset(
         self,
@@ -116,11 +124,16 @@ class PortfolioEnv(gymnasium.Env):
         """
         ...
 
-    def render(self, mode: str = "ansi") -> str | None:
+    def render(self) -> str | None:
         """Render current step.
 
-        mode="ansi" returns a one-line text summary (date, NAV, weights, reward
-        components). mode="human" is a no-op (returns None) per FR-027 minimum.
+        Behavior depends on `self.render_mode` (set at __init__):
+        - "ansi": returns a one-line text summary (date, NAV, weights, reward
+          components).
+        - None: returns None (no-op).
+
+        Per Gymnasium 0.29+, this method takes no `mode` parameter — `render_mode`
+        is fixed at construction time.
         """
         ...
 

@@ -79,8 +79,11 @@ class PortfolioEnvConfig:
     start_date: date | None = None   # None = 資料起始日
     end_date: date | None = None     # None = 資料結束日
     smc_params: SMCParams = field(default_factory=SMCParams)  # 透傳給 001
+    render_mode: str | None = None   # Gymnasium 0.29+：None 或 "ansi"（FR-027）
 
     def __post_init__(self) -> None:
+        if self.render_mode not in (None, "ansi"):
+            raise ValueError("render_mode must be None or 'ansi'")
         if not (0 < self.position_cap <= 1):
             raise ValueError("position_cap must be in (0, 1]")
         if self.position_cap * len(self.assets) < 1.0:
@@ -95,10 +98,13 @@ class PortfolioEnvConfig:
 **不變式**：`assets` 為 tuple（hashable，frozen 配套）；`position_cap × len(assets)`
 ≥ 1.0 確保 simplex 有解。
 
-### §2.3 `SMCParams`（透傳，由 001 spec 規範）
+### §2.3 `SMCParams`（由 001 定義、本 feature 透傳並 re-export）
 
-不在本 feature 內定義；本 feature 只負責於 `__init__` 將其傳給
-`smc_features.batch_compute(df, params=self.config.smc_params)`。
+`SMCParams` 之欄位定義屬 001 spec 範圍，本 feature **不**重新宣告，僅於
+`src/portfolio_env/__init__.py` 與 `contracts/api.pyi` 以
+`from smc_features import SMCParams` 形式 re-export，便於下游
+`from portfolio_env import SMCParams` 一站式取用。執行期 `__init__` 將
+`self.config.smc_params` 傳給 `smc_features.batch_compute(df, params=...)`。
 
 ---
 
@@ -176,12 +182,21 @@ shape=(7,)、dtype=float32、`Box(low=0.0, high=1.0)`。
    - `if s < 1e-6: raise ValueError("Action sum near zero")`
    - `if abs(s − 1.0) > 1e-6: action_normalized = action / s`，標記 `info["action_renormalized"] = True`
    - 否則 `action_normalized = action`
-3. **Position cap**：對任意 i，若 `action_normalized[i] > 0.4`：
-   - `excess = action_normalized[i] − 0.4`
-   - `action_normalized[i] = 0.4`
-   - 將 `excess` 按其餘 6 維（不含被 cap 的 i）的當前權重比例分配
-   - 重複至無 entry 超過 0.4（單次迭代最多 7 次必收斂）
-   - 標記 `info["position_capped"] = True`
+3. **Position cap**（water-filling 演算法，O(n log n)、單趟收斂）：
+   - 令 `cap = config.position_cap`（預設 0.4）。CASH 維（index 6）**不**受 cap 限制。
+   - 若 `max(action_normalized[0:6]) <= cap`：跳過此步、`info["position_capped"] = False`。
+   - 否則：
+     1. 將 6 檔股票權重由大到小排序，取索引序列 `order`。
+     2. 由大至小掃描：對 `j = 0, 1, …, 5`，若 `action_normalized[order[j]] > cap`，
+        則將此 entry 鎖定為 `cap`；累積溢出量 `excess += action_normalized[order[j]] − cap`，
+        並從「未鎖定且未被 cap 觸碰的維度」集合中移除該 index。
+     3. 將 `excess` 按「未鎖定維度（含 CASH）」的**當前權重比例**一次性分配；
+        若分配後仍有 entry > cap，由於 `excess` 來自更大值、加到較小值不會超 cap
+        （已排序保證），此步至多再觸發 1 次。實作上以 do-while 迴圈最多 2 趟保險。
+     4. 標記 `info["position_capped"] = True`。
+   - **數學保證**：因 `cap × len(stocks) = 0.4 × 6 = 2.4 ≥ 1`（FR-022 不變式），
+     simplex 必有合法解；water-filling 將 excess 沿剩餘維度重分配，遞減後不可能
+     再使任何已鎖定維度回到 > cap 狀態。
 4. **寫入 next-step weights**：`self.current_weights = action_normalized`
 
 ---
@@ -195,7 +210,8 @@ shape=(7,)、dtype=float32、`Box(low=0.0, high=1.0)`。
 | `self.config` | PortfolioEnvConfig | frozen 配置 |
 | `self._trading_days` | `numpy.ndarray[date]` | 有效交易日序列（research R5 過濾後） |
 | `self._closes` | `numpy.ndarray[float64]` | shape `(T, 6)`，已 align trading days |
-| `self._returns` | `numpy.ndarray[float64]` | shape `(T, 6)`，next-day 報酬（用於 t→t+1 推進） |
+| `self._returns` | `numpy.ndarray[float64]` | shape `(T, 6)`，**simple return**：`(close_t / close_{t-1}) − 1`（非 log return）；t=0 列為全 0；用於 NAV 推進公式 `nav_t = nav_{t-1} × (1 + dot(weights_{t-1}, [returns_t, rf_daily_t]))` |
+| `self._rf_daily` | `numpy.ndarray[float64]` | shape `(T,)`，cash 桶之 simple return：日化無風險利率 `(1 + rate_pct_t / 100)^(1/252) − 1`（與 §3.1.3 macro 第 0 維同源） |
 | `self._smc_features` | `dict[str, ndarray[float32]]` 或 None | research R7 預計算結果；shape `(T, 5)` |
 | `self._price_features` | `numpy.ndarray[float32]` | shape `(T, 24)`，§3.1.1 預計算 |
 | `self._macro_features` | `numpy.ndarray[float32]` | shape `(T, 2)`，§3.1.3 預計算（含 forward fill） |
@@ -231,7 +247,7 @@ shape=(7,)、dtype=float32、`Box(low=0.0, high=1.0)`。
 | `position_capped` | bool | position cap 是否觸發 |
 | `nan_replaced` | int | 累積 NaN→0.0 替換次數（FR-012） |
 | `is_initial_step` | bool | `current_index == 1`（首次 step） |
-| `data_hashes` | dict | `{asset_name: sha256_hex}`（每步同一物件） |
+| `data_hashes` | dict | `{TICKER: sha256_hex}`，key 為大寫 ticker，與 `config.assets` tuple 元素逐字相同（如 `"NVDA"`、`"AMD"`、…、`"TLT"`）；每步引用同一 dict 物件不重建 |
 | `skipped_dates` | `list[str]` | 累積跳過日期 |
 
 `info_to_json_safe(info)` 轉換規則：所有 `numpy.ndarray` → `list`，所有
@@ -248,8 +264,8 @@ shape=(7,)、dtype=float32、`Box(low=0.0, high=1.0)`。
 1. **Reward 三項一致性**：`log_return − drawdown_penalty − turnover_penalty == reward`，
    容差 1e-9（FR-009、SC-004）。
 2. **NAV 連續性**：`info["nav"]` 序列對任意 t ≥ 1 滿足
-   `nav_t = nav_{t-1} × (1 + dot(weights_{t-1}, simple_returns_t))`，
-   容差 1e-12（同機器）。
+   `nav_t = nav_{t-1} × (1 + Σ_{i=0..5} weights_{t-1}[i] × _returns[t, i] + weights_{t-1}[6] × _rf_daily[t])`，
+   其中 `_returns` 為 6 檔股票之 simple return、`_rf_daily` 為 cash 當日無風險 simple return；容差 1e-12（同機器）。
 3. **Weights simplex**：`info["weights"]` 任一時刻 `sum(weights) == 1.0`（容差 1e-9）、
    `min(weights) >= 0`、`max(weights[0:6]) <= 0.4`（cash 不受 cap 限制）。
 4. **Observation shape**：`include_smc=True` 時 `obs.shape == (63,)`；

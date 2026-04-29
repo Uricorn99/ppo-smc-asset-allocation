@@ -35,16 +35,20 @@ trajectory 容差 ≤ 1e-9（FR-020、SC-002）；CI 矩陣三平台 × 兩 Pyth
 `src/portfolio_env/`、測試 `tests/{contract,integration,unit}/`，與 001、002
 並列於同一 monorepo
 **Performance Goals**: SC-001 全 episode（~2090 個交易日、Dirichlet 隨機策略）
-< 30 秒（單機 CPU）；SMC 特徵於 `__init__` 一次預計算後快取為 numpy 陣列，
-step 內 O(1) 查表
+< 30 秒（單機 CPU），拆為 `__init__` ≤ 10 秒（資料載入、SHA-256 比對、SMC
+batch_compute）與 `reset()` + step loop ≤ 20 秒；SMC 特徵於 `__init__`
+一次預計算後快取為 numpy 陣列，step 內 O(1) 查表
 **Constraints**: 跨平台 byte-identical 容差 ≤ 1e-9（FR-020）；reset(seed) 同步
 四層 seed（numpy / Python random / Gymnasium internal / 環境內部抽樣）（FR-019）；
 資料 hash 比對失敗 MUST 於 `__init__` 立即 raise（research R6）；不得依賴全域
 `np.random.seed`；環境內部運算順序 deterministic（research R2）
-**Scale/Scope**: 6 檔股票 × ~2090 個交易日 ≈ 12.5k 列價格資料；觀測空間 63 維
-× 2090 step ≈ 130k 個 float32（~520 KB），SMC 特徵預計算後總 in-memory 狀態
-< 5 MB；公開 API 約 5 個 symbol（contracts/api.pyi）：`PortfolioEnv`、
-`PortfolioEnvConfig`、`RewardConfig`、`info_to_json_safe`、`make_default_env`
+**Scale/Scope**: 6 檔股票 × ~2090 個交易日 ≈ 12.5k 列價格資料；單 episode
+之 trajectory（2090 step × 63 維 float32）≈ 530 KB（agent buffer 規模參考），
+為訓練 framework 端的考量，非 env 內部記憶體；env 自身 in-memory 狀態
+（價格 + SMC + macro 預計算陣列、weights、nav_history、PRNG）總計 < 5 MB；
+公開 API 共 6 個 symbol（contracts/api.pyi）：`PortfolioEnv`、`PortfolioEnvConfig`、
+`RewardConfig`、`SMCParams`（自 001 re-export）、`info_to_json_safe`、
+`make_default_env`
 
 ## Constitution Check
 
@@ -103,7 +107,7 @@ src/
     ├── reward.py                        # reward 三項分量計算
     ├── seeding.py                       # 四層 seed 同步（research R1）
     ├── info.py                          # info dict 組裝 + info_to_json_safe
-    └── render.py                        # render(mode="ansi") 文字摘要
+    └── render.py                        # render() 文字摘要（依 self.render_mode 分流，FR-027）
 
 tests/
 ├── contract/                            # 對 contracts/ 的簽章與不變式測試
@@ -116,7 +120,8 @@ tests/
 │   ├── test_smc_ablation.py             # US3：63 vs. 33 維對應位置一致
 │   ├── test_info_completeness.py        # US4：每步 info key set
 │   ├── test_cross_platform_trajectory.py # FR-020 byte-identical（CI 矩陣）
-│   ├── test_episode_perf.py             # SC-001 < 30 秒
+│   ├── test_init_perf.py                # SC-001 子預算：__init__ ≤ 10 秒
+│   ├── test_episode_perf.py             # SC-001 子預算：reset + step loop ≤ 20 秒
 │   └── test_data_hash_mismatch.py       # FR-021 raise 行為
 └── unit/                                # 單元正反案例
     ├── test_config.py                   # frozen dataclass 不可變
@@ -124,7 +129,7 @@ tests/
     ├── test_reward_math.py              # log return、drawdown、turnover 算式
     ├── test_observation_layout.py       # 63/33 維分區結構
     ├── test_seeding.py                  # reset(seed) 兩次 trajectory 一致
-    ├── test_render_ansi.py              # render(mode="ansi") 格式
+    ├── test_render_ansi.py              # render_mode="ansi" 文字輸出格式
     └── test_info_to_json_safe.py        # numpy → list 轉換無精度損失
 
 pyproject.toml                           # 依賴 pin（gymnasium、numpy、pandas、pyarrow 透過 002）

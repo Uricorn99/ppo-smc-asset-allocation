@@ -86,7 +86,7 @@ ML 研究者需要證明 reward 函式確實包含「階段性報酬 − MDD 懲
 
 #### 環境介面
 
-- **FR-001**: 環境 MUST 繼承 `gymnasium.Env`，實作 `reset(seed, options)`、`step(action)`、`close()`、`render()`（後者可為 no-op）。
+- **FR-001**: 環境 MUST 繼承 `gymnasium.Env`，實作 `reset(seed, options)`、`step(action)`、`close()`、`render()`（Gymnasium 0.29+ 規範：`render_mode` 由 `__init__(render_mode=...)` 帶入並存於 `self.render_mode`，`render()` 不接受 `mode` 參數；`metadata = {"render_modes": ["ansi"], "render_fps": 0}`）。
 - **FR-002**: 環境 MUST 宣告 `observation_space` 為 `Box(low=-inf, high=inf, shape=(D,), dtype=float32)`，其中 D 由 config 決定（含 SMC=63、不含 SMC=33）。
 - **FR-003**: 環境 MUST 宣告 `action_space` 為 `Box(low=0.0, high=1.0, shape=(7,), dtype=float32)`，對應 [NVDA, AMD, TSM, MU, GLD, TLT, CASH] 七維權重。
 - **FR-004**: 環境 MUST 接受 `gymnasium.utils.env_checker.check_env(env)` 全部檢查通過。
@@ -146,7 +146,7 @@ ML 研究者需要證明 reward 函式確實包含「階段性報酬 − MDD 懲
 
 #### 視覺化（最小可行）
 
-- **FR-027**: 環境 MUST 提供 `render(mode="human")` 之外的 `render(mode="ansi") -> str` 模式，回傳當步狀態之文字摘要（日期、NAV、權重、reward 三項）；圖形化視覺化留給 feature 007（戰情室前端）。
+- **FR-027**: 環境 MUST 支援 `render_mode="ansi"`（於 `__init__` 帶入），`render() -> str` 在此模式下回傳當步狀態之文字摘要（日期、NAV、權重、reward 三項）；`render_mode=None` 時 `render()` 回傳 `None`（no-op）。圖形化視覺化留給 feature 007（戰情室前端）。
 
 ### Key Entities *(include if feature involves data)*
 
@@ -161,7 +161,7 @@ ML 研究者需要證明 reward 函式確實包含「階段性報酬 − MDD 懲
 
 ### Measurable Outcomes
 
-- **SC-001**: 以隨機 Dirichlet 策略跑滿一個 episode（2018-01-01 至 2026-04-29，約 2090 個交易日），單機 CPU 環境總耗時 < 30 秒。
+- **SC-001**: 以隨機 Dirichlet 策略跑滿一個 episode（2018-01-01 至 2026-04-29，約 2090 個交易日），單機 CPU 環境總耗時 < 30 秒；其中 `__init__`（含資料載入、hash 比對、SMC 預計算）≤ 10 秒，`reset()` + 完整 step loop ≤ 20 秒。兩項預算分別由 `tests/integration/test_init_perf.py` 與 `tests/integration/test_episode_perf.py` 驗證。
 - **SC-002**: 跨平台（Linux/macOS/Windows）以相同 seed 與 action 序列跑同 episode，最終 NAV 數值差異 ≤ 1e-9。
 - **SC-003**: `gymnasium.utils.env_checker.check_env(env)` 在 `include_smc=True` 與 `False` 兩種設定下皆 100% 通過，無 warning。
 - **SC-004**: Reward 三項分量（log_return、drawdown_penalty、turnover_penalty）加總 == reward，全 episode 容差 ≤ 1e-9。

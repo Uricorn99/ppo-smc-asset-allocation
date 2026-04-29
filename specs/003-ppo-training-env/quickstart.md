@@ -75,9 +75,13 @@ print(f"Final NAV = {info['nav']:.4f}, peak NAV = {info['peak_nav']:.4f}")
 預期輸出（具體數值因 seed 而定，但結構固定）：
 
 ```
-Episode finished: 2089 steps, total reward = -0.1234
+Episode finished: ~2080 steps, total reward = -0.1234
 Final NAV = 1.7563, peak NAV = 1.9821
 ```
+
+> 註：實際 step 數因 research R5 跳日策略而略小於 `len(data) - 1`（NYSE
+> 交易日 ~2090 中，少數日因任一股票 `quality_flag != ok` 被剔除）。同 commit
+> 同資料 hash 下 step 數固定可重現。
 
 ## §4 驗證 reward 三項分量（憲法 Principle III）
 
@@ -178,7 +182,8 @@ pytest tests/ -v --cov=src/portfolio_env --cov-report=term-missing
 | `tests/integration/test_smc_ablation.py` | US3 |
 | `tests/integration/test_info_completeness.py` | US4 |
 | `tests/integration/test_cross_platform_trajectory.py` | FR-020、SC-002（CI 跨三平台） |
-| `tests/integration/test_episode_perf.py` | SC-001（< 30 秒） |
+| `tests/integration/test_init_perf.py` | SC-001 子預算（__init__ ≤ 10 秒） |
+| `tests/integration/test_episode_perf.py` | SC-001 子預算（reset + step loop ≤ 20 秒） |
 | `tests/integration/test_data_hash_mismatch.py` | FR-021（hash 不符 raise） |
 
 ## §9 常見錯誤排查
@@ -196,6 +201,11 @@ pytest tests/ -v --cov=src/portfolio_env --cov-report=term-missing
 
 | 場景 | 容差 | 出處 |
 |---|---|---|
-| 同機器純算術一致性 | 1e-12 | research R8、US2 |
-| 跨平台 byte-identical | 1e-9 | FR-020、SC-002 |
+| **SC-007 純 ablation**（`lambda_mdd=0, lambda_turnover=0`）reward == log return | 1e-12 | research R8、SC-007 |
+| 一般 step：三項分量加總 == reward（含非零 λ） | 1e-9 | FR-009、SC-004 |
+| 跨平台 byte-identical（NAV / reward 序列） | 1e-9 | FR-020、SC-002 |
 | Action 觸發 L1 normalize 門檻 | 1e-6 | FR-014 |
+
+> **常見誤區**：研究者若用 1e-12 驗證一般訓練場景的「三項加總 == reward」會在
+> 部分 CI runner 上 false fail。1e-12 **只**對應 SC-007 的純 log return 退化
+> 場景；正式訓練/推理 step 一律以 1e-9 判定。

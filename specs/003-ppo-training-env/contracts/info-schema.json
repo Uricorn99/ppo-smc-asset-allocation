@@ -35,7 +35,7 @@
       "minItems": 7,
       "maxItems": 7,
       "items": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-      "description": "Post-processing weights [NVDA, AMD, TSM, MU, GLD, TLT, CASH]. sum == 1 (tolerance 1e-9). All entries except CASH must satisfy <= position_cap (default 0.4)."
+      "description": "Post-processing weights [NVDA, AMD, TSM, MU, GLD, TLT, CASH]. sum == 1 (tolerance 1e-9). All entries except CASH must satisfy <= position_cap (default 0.4). NOTE: this per-entry cap is enforced by env code (data-model.md §4 step 3 water-filling), NOT by JSON Schema — the schema only constrains [0, 1]; runtime tests in tests/integration/test_action_processing.py verify the cap."
     },
     "nav": {
       "type": "number",
@@ -133,7 +133,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Asset name -> SHA-256 hex. Verified at __init__ (research R6); same dict object returned every step."
+      "description": "Uppercase ticker -> SHA-256 hex. Keys MUST match config.assets tuple elements byte-for-byte (e.g. 'NVDA','AMD','TSM','MU','GLD','TLT'). Schema-level constraint: pattern '^[A-Z]+$' rejects lowercase. Verified at __init__ (research R6); same dict object returned every step."
     },
     "skipped_dates": {
       "type": "array",
