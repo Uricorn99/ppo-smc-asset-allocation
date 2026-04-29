@@ -38,9 +38,18 @@ This repo is configured for `integration: claude` and `script: ps` (PowerShell).
 
 Auto-commit hooks are enabled around every speckit phase (`before_*` and `after_*` in `.specify/extensions.yml`). When invoking a `/speckit.*` skill, expect git commit prompts before and after — these are not bugs.
 
-The project constitution at `.specify/memory/constitution.md` is **ratified at v1.0.0** (2026-04-29). It defines five core principles — three are NON-NEGOTIABLE: **Reproducibility (I)**, **Risk-First Reward (III)**, and **Spec-First (V)**. When running `/speckit.plan`, expand these five principles into the empty Constitution Check block in `plan-template.md` (lines 30-34) as concrete gate items for that feature's `plan.md`.
+The project constitution at `.specify/memory/constitution.md` is **ratified at v1.1.0** (2026-04-29). It defines five core principles — three are NON-NEGOTIABLE: **Reproducibility (I)**, **Risk-First Reward (III)**, and **Spec-First (V)**. When running `/speckit.plan`, expand these five principles into the empty Constitution Check block in `plan-template.md` (lines 30-34) as concrete gate items for that feature's `plan.md`.
 
 Helper PowerShell scripts live in `.specify/scripts/powershell/` (`create-new-feature.ps1`, `setup-plan.ps1`, `check-prerequisites.ps1`, `common.ps1`) — these are invoked by the speckit skills, not directly by the user.
+
+## Active Spec Kit feature
+
+<!-- SPECKIT START -->
+- **Feature**: 002-data-ingestion
+- **Plan**: `specs/002-data-ingestion/plan.md`
+- **Phase**: `/speckit.plan` complete (Phase 0 + Phase 1). Next: `/speckit.tasks`.
+- **Sibling feature on hold**: 001-smc-feature-engine (62 tasks reviewed, ready for `/speckit.implement` after 002 produces `data/raw/` snapshots)
+<!-- SPECKIT END -->
 
 ## Language and writing conventions
 
