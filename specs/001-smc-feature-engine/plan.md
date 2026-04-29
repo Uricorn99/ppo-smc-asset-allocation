@@ -36,7 +36,7 @@ spec SC-002，research R5）
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-依 `.specify/memory/constitution.md` v1.0.0 五大原則逐條檢視：
+依 `.specify/memory/constitution.md` v1.1.0 五大原則逐條檢視（v1.1.0 僅變更後端 Java/Spring Boot 版本，本 feature 為純 Python 函式庫不受影響）：
 
 | # | 原則 | 是否適用 | 合規策略 | 狀態 |
 |---|---|---|---|---|
@@ -94,7 +94,7 @@ tests/
 ├── integration/               # 跨模組與 batch/incremental 等價性
 │   ├── test_batch_incremental_equivalence.py
 │   ├── test_quality_flag_propagation.py
-│   └── test_cross_platform_fixtures.py
+│   └── test_cross_platform_fixture.py
 └── unit/                      # 單一規則正反案例
     ├── test_swing.py
     ├── test_bos.py

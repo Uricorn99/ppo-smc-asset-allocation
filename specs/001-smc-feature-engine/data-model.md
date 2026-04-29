@@ -207,7 +207,7 @@ class FeatureRow:
 - `df`: 含 OHLCV 與特徵欄位的 DataFrame（即 `batch_compute` 的輸出）
 - `time_range`: `tuple[pd.Timestamp, pd.Timestamp]`（含起訖）
 - `output_path`: `Path | str`
-- `format`: `Literal["png", "html"]`
+- `fmt`: `Literal["png", "html"]`（與 `contracts/api.pyi` 對齊；避免遮蔽 Python 內建 `format`）
 - `params`（可選）: `SMCFeatureParams`，用於圖例註腳顯示參數值
 
 ---

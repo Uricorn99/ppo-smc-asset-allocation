@@ -50,7 +50,7 @@
 - [ ] **T008** [P] 在 `src/smc_features/types.py` 定義 `SwingPoint`、`FVG`、`OrderBlock` 三個 frozen dataclass，欄位完全照 data-model.md §4。同檔可與 T007 平行寫入但不同類別 — 用 [P] 表示邏輯獨立。
 - [ ] **T009** [P] 在 `src/smc_features/types.py` 定義 `SMCEngineState`、`FeatureRow`、`BatchResult` frozen dataclass，欄位照 data-model.md §5/§6 與 contracts/api.pyi。`SMCEngineState` 初始狀態工廠函式 `SMCEngineState.initial(params)` 回傳 `bar_count=0`、Optional 欄位 `None`、tuple 欄位 `()`、`trend_state="neutral"`。
 - [ ] **T010** 將 `types.py` 公開符號 re-export 至 `src/smc_features/__init__.py`：`SMCFeatureParams`、`SwingPoint`、`FVG`、`OrderBlock`、`SMCEngineState`、`FeatureRow`、`BatchResult`。對齊 contracts/api.pyi `__all__`。
-- [ ] **T011** 在 `tests/conftest.py` 建立共用 fixture：`@pytest.fixture default_params`（回傳 `SMCFeatureParams()` 預設值）；`@pytest.fixture sample_ohlcv`（從 `tests/fixtures/nvda_2024H1.parquet` 載入，若 fixture 檔不存在則 skip 並說明如何由 002 快照重建）；`@pytest.fixture deterministic_atol`（回傳 `1e-9`，對應 spec SC-002）。
+- [ ] **T011** 在 `tests/conftest.py` 建立共用 fixture：`@pytest.fixture default_params`（回傳 `SMCFeatureParams()` 預設值）；`@pytest.fixture small_ohlcv`（從 `tests/fixtures/nvda_2024H1.parquet` 載入，約 125 列，供單元測試與輕量 integration 使用）；`@pytest.fixture sample_ohlcv`（從 `tests/fixtures/nvda_2023_2024.parquet` 載入，**約 500 列、兩年日線，對應 spec SC-001 性能基準量級**，供 T019/T020/T030/T040 等 integration & 性能測試使用）；`@pytest.fixture deterministic_atol`（回傳 `1e-9`，對應 spec SC-002）。若 fixture 檔不存在則測試 skip 並提示如何由 002 快照重建。
 - [ ] **T012** 撰寫 `tests/contract/test_public_api_signatures.py`：用 `inspect.signature` 比對 `smc_features` 公開函式（`batch_compute`、`incremental_compute`、`visualize`）的參數名、預設值、回傳型別與 `contracts/api.pyi` 完全一致；測試 dataclass frozen 性（嘗試 `obj.x = 1` 應拋 `FrozenInstanceError`）。此測試在 Foundational 階段先 import 失敗（紅燈），於 T020 後轉綠。
 
 **Checkpoint**：types.py 完成；`mypy src/smc_features` 通過；contract 簽章測試已寫好（紅燈）；所有 user story 可平行展開。
@@ -77,6 +77,7 @@ FR-001~FR-007、FR-016~FR-018、SC-001、SC-002、SC-004。
 - [ ] **T019** [P] [US1] `tests/integration/test_batch_compute.py`：端到端 — `batch_compute(sample_ohlcv, default_params)` 回傳 `BatchResult`、列數保留（FR-001、invariant 1）、index 完全保留（invariant 2）、五個特徵欄位齊備、`bos_signal`/`choch_signal` 值域 ⊂ {-1, 0, 1}、`ob_touched` dtype `bool`、輸出含 `state` 屬性。
 - [ ] **T020** [US1] `tests/integration/test_byte_identical.py`：FR-006 / invariant 3 — 連兩次 `batch_compute(df, params)` 結果以 `pd.testing.assert_frame_equal(check_dtype=True, check_exact=True)` 比對；不同 dtype 欄位（int8/float64/bool）皆需精確一致。
 - [ ] **T021** [US1] `tests/contract/test_invariants.py`：data-model.md §9 七條不變式 — 1 列數保留 / 2 index 保留 / 3 重現性（兩次呼叫 byte-identical）/ 5 frozen 不可變（嘗試修改 `params` 拋例外）/ 7 CHoCh 優先於 BOS（人造同時觸發 fixture 驗證 `bos_signal==0` 且 `choch_signal!=0`）。Invariant 4（batch/incremental 等價）與 6（NaN 不污染）由 US3、US4 各自覆蓋。
+- [ ] **T021a** [P] [US1] `tests/contract/test_determinism.py`：覆蓋 spec FR-007（不依賴系統時間 / 隨機性 / 多執行緒 reduce）— (a) 靜態斷言：`smc_features` 套件全部 `.py` 檔不得 `import random | secrets | time | datetime` 用於計算路徑（允許 `time` 僅在 viz / benchmark 區）；可用 `ast.parse` 巡訪。(b) 行為斷言：以 `unittest.mock.patch('time.time', return_value=0.0)` 與 `random.seed(任意值)` 包裹 `batch_compute`，驗證輸出仍 byte-identical。
 
 **Tip**：T013–T018 在子模組尚未實作前皆會 `ImportError` — 這就是 red 狀態，預期行為。
 
@@ -90,7 +91,7 @@ FR-001~FR-007、FR-016~FR-018、SC-001、SC-002、SC-004。
 - [ ] **T027** [US1] `src/smc_features/batch.py`：實作 `batch_compute(df, params, *, include_aux=False) -> BatchResult`：(a) 驗證 schema（FR-012/FR-013，缺欄 KeyError、index 非單調 ValueError）；(b) 計算 `valid_mask = (df["quality_flag"] == "ok")` 或全 True；(c) 依序呼叫 swing → ATR → BOS/CHoCh → FVG → OB；(d) 組裝 output DataFrame，dtype 嚴格指定（`bos_signal`/`choch_signal` 用 `pd.Int8Dtype()` nullable、`ob_touched` 用 `pd.BooleanDtype()` nullable、距離欄位用 `float64`）；(e) `include_aux=True` 時加入 6 個 aux 欄位（data-model.md §2）；(f) 構造 `SMCEngineState` 終態並回傳 `BatchResult(output, state)`。**相依 T022–T026**。
 - [ ] **T028** [US1] 在 `src/smc_features/__init__.py` re-export `batch_compute` 與 `BatchResult`。對齊 contracts/api.pyi `__all__`。
 - [ ] **T029** [US1] 跑 `pytest tests/unit/ tests/integration/test_batch_compute.py tests/integration/test_byte_identical.py tests/contract/test_invariants.py tests/contract/test_public_api_signatures.py -v`，確保 T013–T021 全部由紅轉綠；coverage report 對 `swing.py`/`structure.py`/`fvg.py`/`ob.py`/`atr.py`/`batch.py` 所有檔案 ≥ 90%（spec SC-004）。
-- [ ] **T030** [US1] 效能 smoke：以 NVDA 兩年日線 fixture 跑 `batch_compute`，於 `tests/integration/test_performance.py` 加 `@pytest.mark.benchmark`，wall time < 30 秒（spec SC-001）。失敗則 profile 並優化 hot path（向量化、避免 Python loop）。
+- [ ] **T030** [US1] 效能 smoke：以 `sample_ohlcv` fixture（NVDA 兩年日線、約 500 列）跑 `batch_compute`，於 `tests/integration/test_performance.py` 加 `@pytest.mark.benchmark`，wall time < 30 秒（spec SC-001）。失敗則 profile 並優化 hot path（向量化、避免 Python loop）。
 
 **Checkpoint**：US1 獨立可運作 — `from smc_features import batch_compute, SMCFeatureParams; batch_compute(df, SMCFeatureParams())` 可用；可作為 MVP 交付。
 
@@ -172,6 +173,7 @@ FR-001~FR-007、FR-016~FR-018、SC-001、SC-002、SC-004。
 **Purpose**：跨 user story 的最後修整與交付準備。
 
 - [ ] **T054** [P] 對 `src/smc_features/` 全部模組執行 `ruff format` + `ruff check --fix` + `mypy --strict`；最終 0 warning、0 error。
+- [ ] **T054a** [P] FR-016 純函式庫合規性靜態檢查：在 `pyproject.toml` 加 `[tool.ruff.lint.per-file-ignores]` 與 `[tool.ruff.lint.flake8-tidy-imports.banned-api]`（或改用 `import-linter`），禁止 `src/smc_features/` 匯入 `flask | fastapi | aiohttp | django | sqlalchemy | psycopg | pymongo | kafka | confluent_kafka | requests | httpx`。CI 跑 ruff/import-linter 失敗 → fail；對應 spec FR-016「純函式庫，不含 Web 服務、訊息中介、資料庫存取」。
 - [ ] **T055** [P] 確認 coverage 整體 ≥ 90%（spec SC-004）：`pytest --cov=smc_features --cov-report=term-missing --cov-report=html`，補測缺漏分支。
 - [ ] **T056** [P] 跨平台 reference fixture 測試：CI matrix（Linux / macOS / Windows）跑 `tests/integration/test_cross_platform_fixture.py` — 載入 `tests/fixtures/expected_features.parquet`（先在 Linux 產生並 commit）→ 在當前平台跑 `batch_compute` → 以 `np.allclose(atol=1e-9)` 比對（spec SC-002）。若 fixture 尚未建立，本任務含建立步驟。
 - [ ] **T057** [P] `quickstart.md` 端到端驗證：依 quickstart 步驟在乾淨環境執行一次（含 `pip install -r requirements-lock.txt`、batch、visualize、incremental、pytest），全部成功；若有步驟失誤則修 quickstart。對應 spec FR-018。
@@ -217,12 +219,12 @@ FR-001~FR-007、FR-016~FR-018、SC-001、SC-002、SC-004。
 ```
 T001 → T002 → (T003 ∥ T004 ∥ T005) → T006
   → T007 → (T008 ∥ T009) → T010 → T011 → T012
-  → (T013 ∥ T014 ∥ T015 ∥ T016 ∥ T017 ∥ T018 ∥ T019) → T020 → T021
+  → (T013 ∥ T014 ∥ T015 ∥ T016 ∥ T017 ∥ T018 ∥ T019) → T020 → (T021 ∥ T021a)
   → (T022 ∥ T024 ∥ T025 ∥ T026) → T023 → T027 → T028 → T029 → T030
   → (T031 ∥ T032 ∥ T033) → (T034 ∥ T035) → T036 → T037 → T038 → T039
   → (T040 ∥ T041 ∥ T042 ∥ T043) → T044 → T045 → T046 → T047
   → (T048 ∥ T049 ∥ T050) → T051 → T052 → T053
-  → (T054 ∥ T055 ∥ T056 ∥ T057) → T058 → T059 → T060
+  → (T054 ∥ T054a ∥ T055 ∥ T056 ∥ T057) → T058 → T059 → T060
 ```
 
 ---
