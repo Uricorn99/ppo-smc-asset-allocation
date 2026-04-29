@@ -45,11 +45,12 @@ Helper PowerShell scripts live in `.specify/scripts/powershell/` (`create-new-fe
 ## Active Spec Kit feature
 
 <!-- SPECKIT START -->
-- **Feature**: 002-data-ingestion
-- **Plan**: `specs/002-data-ingestion/plan.md`
-- **Tasks**: `specs/002-data-ingestion/tasks.md` (57 tasks across 7 phases, 4 user stories; reviewed 2026-04-29)
-- **Phase**: `/speckit.tasks` complete + auto-review pass. Next: `/speckit.implement`.
-- **Sibling feature on hold**: 001-smc-feature-engine (62 tasks reviewed, ready for `/speckit.implement` after 002 produces `data/raw/` snapshots)
+- **Feature**: 003-ppo-training-env
+- **Spec**: `specs/003-ppo-training-env/spec.md`
+- **Phase**: `/speckit.specify` complete (validation checklist passed). Next: human review gate → `/speckit.plan`.
+- **Sibling features**:
+  - 002-data-ingestion: 57 tasks across 7 phases reviewed 2026-04-29, ready for `/speckit.implement` (will commit `data/raw/` Parquet snapshots).
+  - 001-smc-feature-engine: 62 tasks ready, blocked on 002 producing `data/raw/`.
 <!-- SPECKIT END -->
 
 ## Language and writing conventions
